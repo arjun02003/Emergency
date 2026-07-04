@@ -1,40 +1,11 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import axios from "axios";
-import { Users, Hospital, AlertTriangle, Ambulance, LogOut, Shield, Plus, Eye, Pencil, Trash2, KeyRound } from "lucide-react";
-import { HospitalMap } from "../components/map";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+import React from "react";
 
 export default function AdminDashboard() {
-  const [dashboardData, setDashboardData] = useState({ stats: { totalUsers: 0, totalHospitals: 0, hospitalsOnline: 0, hospitalsOffline: 0, activeSosRequests: 0 }, hospitals: [], activeEmergencies: [], recentRequests: [] });
-  const [loading, setLoading] = useState(true);
-  const [showHospitalModal, setShowHospitalModal] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem("token");
-        const response = await axios.get(`${API_BASE_URL}/api/admin/dashboard`, { headers: { Authorization: `Bearer ${token}` } });
-        setDashboardData(response.data || dashboardData);
-      } catch (err) {
-        console.error(err);
-        setToastMessage("Unable to load dashboard data");
-        setShowToast(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      {showToast && (<div className="fixed top-5 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 rounded-3xl border border-emerald-500 bg-emerald-500/10 px-5 py-4 text-emerald-200 shadow-2xl backdrop-blur-xl">{toastMessage}</div>)}
+    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+      <h1 className="text-2xl">Admin Dashboard (placeholder)</h1>
+    </div>
+  );
 
       <nav className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-5">
