@@ -1,262 +1,40 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import {
-  Users,
-  Hospital,
-  AlertTriangle,
-  Ambulance,
-  LogOut,
-  Shield,
-  Plus,
-  Eye,
-  Pencil,
-  Trash2,
-  KeyRound,
-  MapPin,
-} from "lucide-react";
+import { Users, Hospital, AlertTriangle, Ambulance, LogOut, Shield, Plus, Eye, Pencil, Trash2, KeyRound } from "lucide-react";
 import { HospitalMap } from "../components/map";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function AdminDashboard() {
-  const [dashboardData, setDashboardData] = useState({
-    stats: {
-      totalUsers: 0,
-      totalHospitals: 0,
-      hospitalsOnline: 0,
-      hospitalsOffline: 0,
-      activeSosRequests: 0,
-    },
-    hospitals: [],
-    activeEmergencies: [],
-  });
+  const [dashboardData, setDashboardData] = useState({ stats: { totalUsers: 0, totalHospitals: 0, hospitalsOnline: 0, hospitalsOffline: 0, activeSosRequests: 0 }, hospitals: [], activeEmergencies: [], recentRequests: [] });
   const [loading, setLoading] = useState(true);
   const [showHospitalModal, setShowHospitalModal] = useState(false);
-  const [hospitalForm, setHospitalForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    phone: "",
-    address: "",
-    emergencyTypes: "",
-  });
-  const [isEditingHospital, setIsEditingHospital] = useState(false);
-  const [editingHospitalId, setEditingHospitalId] = useState(null);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [selectedHospital, setSelectedHospital] = useState(null);
-  const [generatePassword, setGeneratePassword] = useState(true);
-  const [isSubmittingHospital, setIsSubmittingHospital] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordToShow, setPasswordToShow] = useState("");
-  const [hospitalFormError, setHospitalFormError] = useState("");
-
-  const showSuccessToast = (message) => {
-    setToastMessage(message);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
-  };
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${API_BASE_URL}/api/admin/dashboard`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      setDashboardData({
-        stats: response.data.stats || {
-          totalUsers: 0,
-          totalHospitals: 0,
-          hospitalsOnline: 0,
-          hospitalsOffline: 0,
-          activeSosRequests: 0,
-        },
-        hospitals: response.data.hospitals || [],
-        activeEmergencies: response.data.activeEmergencies || [],
-      });
-    } catch (error) {
-      console.error("Failed to load dashboard data", error);
-      showSuccessToast("Unable to load dashboard data right now.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleHospitalChange = (e) => {
-    const { name, value } = e.target;
-    setHospitalForm((prev) => ({ ...prev, [name]: value }));
-    if (hospitalFormError) {
-      setHospitalFormError("");
-    }
-  };
-
-  const validateHospitalForm = () => {
-    const name = hospitalForm.name.trim();
-    const email = hospitalForm.email.trim();
-    const password = hospitalForm.password.trim();
-    const phone = hospitalForm.phone.trim();
-    const address = hospitalForm.address.trim();
-    const emergencyTypes = hospitalForm.emergencyTypes
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    if (!name || !email || !phone || !address || emergencyTypes.length === 0) {
-      return "Please fill all required hospital fields.";
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return "Please enter a valid email address.";
-    }
-
-    if (!generatePassword && !password) {
-      return "Please enter a password or enable auto-generation.";
-    }
-
-    if (phone.length < 7) {
-      return "Please enter a valid phone number.";
-    }
-
-    return "";
-  };
-
-  const handleCreateHospital = async (e) => {
-    e.preventDefault();
-    const validationError = validateHospitalForm();
-
-    if (validationError) {
-      setHospitalFormError(validationError);
-      return;
-    }
-
-    setIsSubmittingHospital(true);
-    setHospitalFormError("");
-
-    try {
-      const token = localStorage.getItem("token");
-      const payload = {
-        name: hospitalForm.name.trim(),
-        email: hospitalForm.email.trim(),
-        phone: hospitalForm.phone.trim(),
-        address: hospitalForm.address.trim(),
-        emergencyTypes: hospitalForm.emergencyTypes
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
-        ...(generatePassword ? {} : { password: hospitalForm.password.trim() }),
-      };
-
-      let response;
-      if (isEditingHospital && editingHospitalId) {
-        response = await axios.put(`${API_BASE_URL}/api/admin/hospital/${editingHospitalId}`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } else {
-        response = await axios.post(`${API_BASE_URL}/api/admin/create-hospital`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-
-      setHospitalForm({
-        name: "",
-        email: "",
-        password: "",
-        phone: "",
-        address: "",
-        emergencyTypes: "",
-      });
-      setGeneratePassword(true);
-      setShowHospitalModal(false);
-      setIsEditingHospital(false);
-      setEditingHospitalId(null);
-      await fetchDashboardData();
-      if (response.data.generatedPassword) {
-        setPasswordToShow(response.data.generatedPassword);
-        setShowPasswordModal(true);
-      } else {
-        showSuccessToast("Hospital created successfully.");
-      }
-    } catch (error) {
-      setHospitalFormError(error.response?.data?.message || "Failed to create hospital");
-      console.error(error);
-    } finally {
-      setIsSubmittingHospital(false);
-    }
-  };
-
-  const handleHospitalAction = (action, hospital) => {
-    if (!hospital) return showSuccessToast('Hospital not found');
-    const token = localStorage.getItem('token');
-
-    if (action === 'View') {
-      setSelectedHospital(hospital);
-      setShowViewModal(true);
-      return;
-    }
-
-    if (action === 'Edit') {
-      setIsEditingHospital(true);
-      setEditingHospitalId(hospital._id);
-      setHospitalForm({
-        name: hospital.name || '',
-        email: hospital.email || '',
-        password: '',
-        phone: hospital.phone || '',
-        address: hospital.address || '',
-        emergencyTypes: (hospital.emergencyTypes || []).join(', '),
-      });
-      setShowHospitalModal(true);
-      return;
-    }
-
-    if (action === 'Delete') {
-      if (!window.confirm(`Are you sure you want to delete ${hospital.name}? This cannot be undone.`)) return;
-      axios.delete(`${API_BASE_URL}/api/admin/hospital/${hospital._id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then(() => {
-        showSuccessToast('Hospital deleted');
-        fetchDashboardData();
-      }).catch((err) => {
-        alert(err.response?.data?.message || 'Failed to delete hospital');
-      });
-      return;
-    }
-
-    if (action === 'Reset Password') {
-      if (!window.confirm(`Reset password for ${hospital.name}?`)) return;
-      axios.post(`${API_BASE_URL}/api/admin/hospital/${hospital._id}/reset-password`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((res) => {
-        if (res.data.generatedPassword) {
-          setPasswordToShow(res.data.generatedPassword);
-          setShowPasswordModal(true);
-        } else {
-          showSuccessToast('Password reset successfully');
-        }
-      }).catch((err) => {
-        alert(err.response?.data?.message || 'Failed to reset password');
-      });
-      return;
-    }
-  };
+  const [toastMessage, setToastMessage] = useState("");
 
   useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        const token = localStorage.getItem("token");
+        const response = await axios.get(`${API_BASE_URL}/api/admin/dashboard`, { headers: { Authorization: `Bearer ${token}` } });
+        setDashboardData(response.data || dashboardData);
+      } catch (err) {
+        console.error(err);
+        setToastMessage("Unable to load dashboard data");
+        setShowToast(true);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      {showToast && (
-        <div className="fixed top-5 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 rounded-3xl border border-emerald-500 bg-emerald-500/10 px-5 py-4 text-emerald-200 shadow-2xl backdrop-blur-xl">
-          {toastMessage}
-        </div>
-      )}
+      {showToast && (<div className="fixed top-5 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 rounded-3xl border border-emerald-500 bg-emerald-500/10 px-5 py-4 text-emerald-200 shadow-2xl backdrop-blur-xl">{toastMessage}</div>)}
 
       <nav className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-5">
