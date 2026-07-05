@@ -1,0 +1,10 @@
+# Render manifest for SURAKSHA backend
+services:
+  - type: web
+    name: suraksha-backend
+    env: node
+    branch: main
+    root: backend
+    buildCommand: ""
+    startCommand: "node server.js"
+    plan: free
