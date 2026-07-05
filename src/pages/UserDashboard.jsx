@@ -6,6 +6,17 @@ import {
   History, LogOut, Heart, Ambulance, Loader2
 } from "lucide-react";
 
+const STATUS_LABELS = {
+  idle: "🛡️ Waiting for an emergency",
+  locating: "📍 Detecting your current location...",
+  searching: "🔍 Searching nearby hospitals...",
+  hospital_found: "🏥 A suitable hospital has been identified",
+  waiting_for_acceptance: "🏥 Request sent to",
+  hospital_accepted: "🏥 Hospital accepted your request",
+  ambulance_assigned: "🚑 Ambulance Assigned",
+  completed: "✅ Emergency completed",
+};
+
 export default function UserDashboard() {
   const navigate = useNavigate();
 
@@ -14,14 +25,10 @@ export default function UserDashboard() {
   const [profileError, setProfileError] = useState(null);
 
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
+  const [emergencyState, setEmergencyState] = useState("idle");
   const [assignedHospital, setAssignedHospital] = useState(null);
-  const [ambulanceInfo, setAmbulanceInfo] = useState({
-    number: "KA-05-AB-6789",
-    driver: "Ramesh Kumar",
-    eta: "8 mins",
-    status: "On the way",
-    location: "2.3 km away"
-  });
+  const [ambulanceInfo, setAmbulanceInfo] = useState(null);
+  const [emergencyId, setEmergencyId] = useState(null);
 
   // parse emergency contact into name/phone
   const parseEmergencyContact = (ec) => {
@@ -47,7 +54,7 @@ export default function UserDashboard() {
         }
 
         const response = await axios.get(
-          "https://suraksha-emergency-4.onrender.com/api/user/me",
+          "http://localhost:5000/api/user/me",
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -100,9 +107,63 @@ export default function UserDashboard() {
     },
   ];
 
+  const fetchEmergencyStatus = async () => {
+    const token = localStorage.getItem("token");
+    if (!token || !emergencyId) return;
+
+    try {
+      const response = await axios.get("http://localhost:5000/api/emergency/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const emergency = response.data.emergency;
+      if (!emergency) return;
+
+      const status = emergency.status || "idle";
+      setEmergencyState(status);
+      setIsEmergencyActive(status !== "completed" && status !== "idle");
+      setEmergencyId(emergency._id);
+      setAssignedHospital(
+        emergency.assignedHospital
+          ? {
+              id: emergency.assignedHospital._id,
+              name: emergency.assignedHospital.name,
+              distance: emergency.distance ? `${emergency.distance.toFixed(2)} km` : "Calculating...",
+            }
+          : null
+      );
+
+      if (status === "ambulance_assigned" && emergency.ambulance) {
+        setAmbulanceInfo({
+          number: emergency.ambulance.vehicleNumber,
+          driver: emergency.ambulance.driverName,
+          eta: `${emergency.eta || 15} mins`,
+          status: "Assigned",
+          location: "Preparing arrival",
+        });
+      } else if (status === "hospital_accepted") {
+        setAmbulanceInfo(null);
+      }
+    } catch (error) {
+      console.error("Emergency status fetch failed:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!emergencyId) return;
+
+    const intervalId = window.setInterval(() => {
+      fetchEmergencyStatus();
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
+  }, [emergencyId]);
+
   const handleSOS = async () => {
     try {
       setIsActivating(true);
+      setEmergencyState("locating");
+      setAmbulanceInfo(null);
 
       const token = localStorage.getItem("token");
       if (!token) {
@@ -114,43 +175,45 @@ export default function UserDashboard() {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords;
+          setEmergencyState("searching");
 
           const response = await axios.post(
-            "https://suraksha-emergency-4.onrender.com/api/emergency/create",
+            "http://localhost:5000/api/emergency/create",
             { latitude, longitude },
             {
               headers: { Authorization: `Bearer ${token}` },
             }
           );
 
-          alert(response.data.message || "Emergency SOS Activated!");
-
+          const emergency = response.data.emergency;
+          setEmergencyId(emergency?._id || null);
+          setEmergencyState(emergency?.status || "waiting_for_acceptance");
           setIsEmergencyActive(true);
-          
-          // ✅ Updated according to your new backend response structure
-          setAssignedHospital({
-            name:
-              response.data.assignedHospital?.name || "Nearest Hospital",
-            distance:
-              response.data.emergency?.distance
-                ? `${response.data.emergency.distance.toFixed(2)} km`
-                : "Finding...",
-          });
+          setAssignedHospital(
+            emergency?.assignedHospital
+              ? {
+                  id: emergency.assignedHospital._id,
+                  name: emergency.assignedHospital.name,
+                  distance: emergency.distance ? `${emergency.distance.toFixed(2)} km` : "Calculating...",
+                }
+              : null
+          );
 
           setShowSOSModal(false);
           setIsActivating(false);
         },
         (error) => {
           console.error("Location error:", error);
+          setEmergencyState("idle");
           alert("Location access denied. Please allow location permission.");
           setIsActivating(false);
         }
       );
-
     } catch (error) {
       console.error("SOS Error:", error);
+      setEmergencyState("idle");
       alert(
-        error.response?.data?.message || 
+        error.response?.data?.message ||
         "Failed to activate emergency. Please try again."
       );
       setIsActivating(false);
@@ -296,31 +359,43 @@ export default function UserDashboard() {
                 Emergency Status
               </h3>
               
-              {isEmergencyActive && assignedHospital ? (
+              {isEmergencyActive ? (
                 <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-red-400 font-medium">ACTIVE EMERGENCY</p>
-                      <p className="text-2xl font-bold mt-1">Ambulance Dispatched</p>
+                      <p className="text-xl font-bold mt-1">{STATUS_LABELS[emergencyState] || "Processing emergency..."}</p>
                     </div>
                     <button
                       onClick={() => {
                         setIsEmergencyActive(false);
+                        setEmergencyState("idle");
                         setAssignedHospital(null);
+                        setAmbulanceInfo(null);
+                        setEmergencyId(null);
                       }}
                       className="px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-sm"
                     >
                       Cancel Alert
                     </button>
                   </div>
-                  <div className="mt-6 pt-6 border-t border-red-500/20">
-                    <div className="flex items-center gap-4">
-                      <Hospital className="text-red-500" size={28} />
-                      <div>
-                        <p className="font-semibold">{assignedHospital.name}</p>
-                        <p className="text-sm text-slate-400">{assignedHospital.distance} • Assigned</p>
+                  <div className="mt-6 pt-6 border-t border-red-500/20 space-y-4">
+                    {assignedHospital && (
+                      <div className="flex items-center gap-4">
+                        <Hospital className="text-red-500" size={28} />
+                        <div>
+                          <p className="font-semibold">{assignedHospital.name}</p>
+                          <p className="text-sm text-slate-400">{assignedHospital.distance}</p>
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    {ambulanceInfo && (
+                      <div className="rounded-2xl bg-slate-950/70 p-4 border border-slate-800">
+                        <p className="font-semibold">{ambulanceInfo.driver}</p>
+                        <p className="text-sm text-slate-400">Vehicle: {ambulanceInfo.number}</p>
+                        <p className="text-sm text-slate-400">ETA: {ambulanceInfo.eta}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (

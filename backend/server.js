@@ -7,6 +7,7 @@ const emergencyRoutes = require("./routes/EmergencyRoutes");
 const authRoutes = require("./routes/AuthRoutes");
 const hospitalRoutes = require("./routes/HospitalRoutes");
 const ambulanceRoutes = require("./routes/AmbulanceRoutes");
+const driverAuthRoutes = require("./routes/DriverAuthRoutes");
 const adminRoutes = require("./routes/AdminRoutes");
 const userRoutes = require("./routes/UserRoutes");
 dotenv.config();
@@ -28,6 +29,7 @@ app.get("/", (req, res) => {
 // Routes
 app.use("/api/emergency", emergencyRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/ambulance/auth", driverAuthRoutes);
 app.use("/api/hospital", hospitalRoutes);
 app.use("/api/ambulance", ambulanceRoutes);
 app.use("/api/admin", adminRoutes);
